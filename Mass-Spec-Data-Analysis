@@ -1,0 +1,25 @@
+# Proteomics Analysis Template (MaxQuant + R)
+
+This repository contains a reproducible and modular RMarkdown pipeline for the statistical analysis and quality control of label-free proteomics data. It is designed to process proteinGroups output from **MaxQuant**, along with a corresponding sample list.
+
+> ⚠ The template currently supports **two-condition datasets** and includes filtering, normalization, imputation, QC visualization, and coefficient of variation analysis.
+
+##  Features
+- Interactive file selection for proteins, sample list (and optionally peptides)
+- Protein filtering based on peptide count and contaminants
+- Median normalization and MNAR + MissForest imputation
+- Multiple QC plots:
+  - Quantified protein & peptide counts
+  - Violin plots before/after normalization
+  - Missing-value distributions and heatmaps
+  - Coefficient of Variation (CV) across groups
+  - Scatterplot matrix, 2D density plots, and more
+- Export of all plots as PNG and SVG
+
+##  Expected Input Files
+- `*_Proteins.txt`: Protein groups file from MaxQuant
+- `sample_list.txt`: A tab-delimited file with at least two columns:
+  - `Sample` – new sample names
+  - `RawFile` – matching names as in proteinGroups columns
+  - `Group` – group/condition name
+- *(Optional)* `*_PeptideGroups.txt` if peptide-level analysis is needed
