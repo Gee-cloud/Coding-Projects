@@ -1,0 +1,184 @@
+---
+title: "Transcriptomics_Project_1"
+author: "Gee"
+date: "2025-05-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Load Required Libraries}
+##Load Required Libraries
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+
+options(repos = c(CRAN = "https://cran.rstudio.com"))
+
+# Core DESeq2 and data tools
+BiocManager::install(c("DESeq2", "apeglm", "pheatmap", "tximport", "AnnotationDbi"))
+
+# Optional: for working with GEO data (e.g., if using GEOquery)
+BiocManager::install("GEOquery")
+
+# Visualization & data wrangling from CRAN
+install.packages(c("tidyverse", "ggplot2", "RColorBrewer"))
+
+library(DESeq2)
+library(tidyverse)  # for data wrangling and plotting
+library(ggplot2)
+library(pheatmap)   # for heatmaps
+library(RColorBrewer)
+```
+
+
+```{r Load Count Data}
+## Load Count Data
+counts <- read.delim("E:/Transcriptomics_Project/GSE50760_raw_counts_GRCh38.p13_NCBI.tsv.gz", row.names = 1)
+head(counts[, 1:5])
+```
+
+
+```{r Create Metadata}
+##Create Metadata
+sample_ids <- colnames(counts)
+condition <- c(rep("Normal", 18), rep("Tumor", 18), rep("Metastasis", 18))  # adjust if needed
+metadata <- data.frame(row.names = sample_ids,
+                       condition = factor(condition))
+```
+
+
+```{r Build DESeq2 Dataset}
+##Build DESeq2 Dataset
+dds <- DESeqDataSetFromMatrix(countData = counts,
+                              colData = metadata,
+                              design = ~ condition)
+```
+
+
+```{r Prefilter Genes}
+##Prefilter Genes
+dds <- dds[rowSums(counts(dds)) > 10, ]
+```
+
+
+```{r Set Metastasis as the reference and run DE}
+##Set Metastasis as the reference and run DE
+dds$condition <- relevel(dds$condition, ref = "Tumor")
+dds <- DESeq(dds)
+resultsNames(dds)
+```
+
+
+```{r Shrink Log Fold Changes}
+##Shrink Log Fold Changes
+library(apeglm)
+
+resultsNames(dds)
+
+
+# check available coefficients
+coef_name <- grep("Metastasis.*Tumor", resultsNames(dds), value = TRUE)
+
+# shrink only if it exists
+if (length(coef_name) > 0) {
+  res_shrink <- lfcShrink(dds,
+                          coef = coef_name,
+                          type = "apeglm")
+} else {
+  stop("Correct contrast name not found. Check resultsNames(dds).")
+}
+
+# Save results 
+write.csv(as.data.frame(res_shrink),
+          file = "DEG_Metastasis_vs_Tumor.csv")
+```
+
+
+```{r Volcano Plot}
+##Volcano Plot
+res_df <- as.data.frame(res_shrink)
+res_df$gene <- rownames(res_df)
+library(ggplot2)
+ggplot(res_df, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = padj < 0.05 & abs(log2FoldChange) > 1), alpha = 0.7) +
+  scale_color_manual(values = c("grey", "red")) +
+  theme_minimal() +
+  labs(title = "Metastasis vs Tumor — Volcano Plot",
+       x = "log2 Fold Change", y = "-log10 Adjusted p-value")
+```
+
+
+```{r PCA}
+##PCA
+library(DESeq2)
+
+vsd <- vst(dds, blind = FALSE)
+pcaData <- plotPCA(vsd, intgroup = "condition", returnData = TRUE)
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+ggplot(pcaData, aes(PC1, PC2, color = condition)) +
+  geom_point(size = 3) +
+  xlab(paste0("PC1: ", percentVar[1], "%")) +
+  ylab(paste0("PC2: ", percentVar[2], "%")) +
+  theme_classic() +
+  labs(title = "PCA: Metastasis vs Tumor")
+
+```
+
+
+```{r Heatmaps}
+##Heatmaps
+library(pheatmap)
+top_genes <- head(order(res_shrink$padj), 30)
+mat <- assay(vsd)[top_genes, ]
+mat <- mat - rowMeans(mat)
+
+pheatmap(mat, annotation_col = as.data.frame(colData(dds)[, "condition", drop = FALSE]),
+         show_rownames = TRUE, cluster_cols = TRUE,
+         main = "Top 30 DEGs — Metastasis vs Tumor")
+options(repos = c(CRAN = "https://cran.rstudio.com"))
+
+BiocManager::install("org.Hs.eg.db")
+library(org.Hs.eg.db)
+```
+
+
+```{r GO enrichment analysis}
+##GO enrichment analysis
+#convert top genes to gene symnols 
+# Get the top 100 DEGs by adjusted p-value
+top_genes <- head(res_shrink[order(res_shrink$padj), ], 100)
+top_ids <- rownames(top_genes)
+
+# Map Entrez IDs to gene symbols
+gene_symbols <- mapIds(org.Hs.eg.db,
+                       keys = top_ids,
+                       column = "SYMBOL",
+                       keytype = "ENTREZID",
+                       multiVals = "first")
+
+# Add to DEG results
+top_genes$symbol <- gene_symbols
+head(top_genes)
+options(repos = c(CRAN = "https://cran.rstudio.com"))
+
+BiocManager::install("clusterProfiler")
+library(clusterProfiler)
+
+# GO enrichment analysis
+ego <- enrichGO(gene = top_ids,
+                OrgDb = org.Hs.eg.db,
+                keyType = "ENTREZID",
+                ont = "BP",  # Biological Process
+                pAdjustMethod = "BH",
+                pvalueCutoff = 0.05,
+                readable = TRUE)
+
+# View results
+head(ego)
+barplot(ego, showCategory = 10, title = "Top GO Biological Processes")
+```
+
+
