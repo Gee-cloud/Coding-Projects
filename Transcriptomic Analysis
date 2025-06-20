@@ -1,0 +1,29 @@
+Title:
+Colorectal Cancer RNA-Seq Analysis using DESeq2
+
+Description:
+This R script performs differential gene expression analysis of colorectal cancer RNA-seq data using the DESeq2 pipeline. The workflow includes data import, quality control, normalization, statistical testing, and visualization of significantly regulated genes. The dataset consists of two experimental conditions (e.g., tumor vs. normal), and the results support downstream functional enrichment and biomarker discovery.
+
+Key steps covered in the script:
+
+Loading raw count matrix and sample metadata
+
+DESeq2 normalization and dispersion estimation
+
+Principal Component Analysis (PCA)
+
+MA and Volcano plots for visualizing results
+
+Export of differentially expressed genes
+
+Heatmap clustering of significant genes
+
+Tools used:
+
+DESeq2
+
+ggplot2
+
+pheatmap
+
+EnhancedVolcano
